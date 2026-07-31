@@ -13,10 +13,9 @@ const saveAudit = async (entry: AuditEntry) => {
 const uid = () => crypto.randomUUID();
 const native = <T>(message: object) => chrome.runtime.sendNativeMessage(NATIVE_HOST, message) as Promise<T>;
 
-async function listCookies(storeId?: string, url?: string): Promise<CookieRecord[]> {
+async function listCookies(url?: string): Promise<CookieRecord[]> {
   const stores = await chrome.cookies.getAllCookieStores();
-  const selectedStores = storeId ? stores.filter(store => store.id === storeId) : stores;
-  const lists = await Promise.all(selectedStores.map(store => chrome.cookies.getAll({ storeId: store.id, ...(url ? { url } : {}) })));
+  const lists = await Promise.all(stores.map(store => chrome.cookies.getAll({ storeId: store.id, ...(url ? { url } : {}) })));
   const records = lists.flat().map(toRecord);
   void syncNativeSnapshot(records);
   return records;
@@ -99,13 +98,16 @@ export default defineBackground(() => {
   chrome.runtime.onMessage.addListener((message: { type: string; [key: string]: unknown }, _sender, sendResponse) => {
     const run = async () => {
       switch (message.type) {
-        case 'list': return listCookies(message.storeId as string | undefined, message.url as string | undefined);
-        case 'stores': {
-          const [stores, incognitoAllowed] = await Promise.all([chrome.cookies.getAllCookieStores(), chrome.extension.isAllowedIncognitoAccess()]);
-          return stores.map(store => ({ id: store.id, label: store.id === '0' ? 'Default store' : `${incognitoAllowed ? 'Incognito' : 'Additional'} store ${store.id}`, tabCount: store.tabIds.length }));
+        case 'list': return listCookies(message.url as string | undefined);
+        case 'settings': {
+          const settings = await getStored<AppSettings>(STORAGE.settings, { defaultView: 'Domain' });
+          return { defaultView: settings.defaultView };
         }
-        case 'settings': return getStored<AppSettings>(STORAGE.settings, { defaultView: 'Domain' });
-        case 'saveSettings': await chrome.storage.local.set({ [STORAGE.settings]: message.settings }); return true;
+        case 'saveSettings': {
+          const settings = message.settings as AppSettings;
+          await chrome.storage.local.set({ [STORAGE.settings]: { defaultView: settings.defaultView } });
+          return true;
+        }
         case 'collections': return getStored<CookieCollection[]>(STORAGE.collections, []);
         case 'saveCollections': await chrome.storage.local.set({ [STORAGE.collections]: message.collections }); return true;
         case 'disabled': return getStored<DisabledCookie[]>(STORAGE.disabled, []);

@@ -40,7 +40,6 @@ export interface AuditEntry {
 }
 
 export interface AppSettings {
-  activeStoreId?: string;
   defaultView: 'Domain' | 'FQDN' | 'URL';
 }
 

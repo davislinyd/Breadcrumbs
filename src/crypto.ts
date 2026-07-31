@@ -3,6 +3,7 @@ import type { BackupEnvelope, BackupPayload } from './types';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+export const MIN_BACKUP_PASSWORD_LENGTH = 8;
 
 const bytesToBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
 const base64ToBytes = (value: string) => Uint8Array.from(atob(value), char => char.charCodeAt(0));
@@ -14,6 +15,7 @@ async function deriveKey(password: string, salt: Uint8Array) {
 }
 
 export async function encryptBackup(payload: BackupPayload, password: string): Promise<BackupEnvelope> {
+  if ([...password].length < MIN_BACKUP_PASSWORD_LENGTH) throw new Error(`Backup password must be at least ${MIN_BACKUP_PASSWORD_LENGTH} characters`);
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const nonce = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(password, salt);

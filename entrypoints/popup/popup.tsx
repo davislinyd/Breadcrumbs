@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckSquare, ChevronDown, ChevronRight, Clipboard, CloudDownload, CloudUpload, Copy, Eye, EyeOff, Filter,
-  Globe2, KeyRound, Menu, MoreVertical, PauseCircle, Plus, RefreshCw, RotateCcw, Search, Settings,
+  Globe2, Menu, MoreVertical, PauseCircle, Plus, RefreshCw, RotateCcw, Search, Settings,
   Square, Trash2, X,
 } from 'lucide-react';
-import { decryptBackup, encryptBackup } from '../../src/crypto';
+import { decryptBackup, encryptBackup, MIN_BACKUP_PASSWORD_LENGTH } from '../../src/crypto';
 import { sampleCookies } from '../../src/sample-data';
 import type { AppSettings, AuditEntry, BackupEnvelope, BackupPayload, CookieCollection, CookieRecord, DisabledCookie } from '../../src/types';
 import { rawCookie, setCookieText } from '../../src/types';
 
 type View = AppSettings['defaultView'];
-type StoreOption = { id: string; label: string; tabCount: number };
 type Response<T> = { ok: true; value: T } | { ok: false; error: string };
 
 async function send<T>(type: string, values: Record<string, unknown> = {}): Promise<T> {
@@ -29,7 +28,6 @@ export function App() {
   const [cookies, setCookies] = useState<CookieRecord[]>([]);
   const [collections, setCollections] = useState<CookieCollection[]>([]);
   const [disabled, setDisabled] = useState<DisabledCookie[]>([]);
-  const [stores, setStores] = useState<StoreOption[]>([{ id: '0', label: 'Default store', tabCount: 0 }]);
   const [settings, setSettings] = useState<AppSettings>({ defaultView: 'Domain' });
   const [query, setQuery] = useState('');
   const [urlTarget, setUrlTarget] = useState('');
@@ -38,7 +36,6 @@ export function App() {
   const [selected, setSelected] = useState<CookieRecord | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [message, setMessage] = useState('');
-  const [profileOpen, setProfileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
@@ -47,34 +44,42 @@ export function App() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const activeStore = settings.activeStoreId;
   const view = settings.defaultView;
   const toast = (text: string) => { setMessage(text); window.setTimeout(() => setMessage(''), 2800); };
 
-  const reload = async (storeId = activeStore, targetUrl = view === 'URL' ? urlTarget.trim() : '') => {
+  const reload = async (targetUrl = view === 'URL' ? urlTarget.trim() : '') => {
     try {
       if (targetUrl) new URL(targetUrl);
       const [live, savedCollections, savedDisabled] = await Promise.all([
-        send<CookieRecord[]>('list', { storeId, ...(targetUrl ? { url: targetUrl } : {}) }),
+        send<CookieRecord[]>('list', targetUrl ? { url: targetUrl } : {}),
         send<CookieCollection[]>('collections'), send<DisabledCookie[]>('disabled'),
       ]);
       setCookies(live); setCollections(savedCollections); setDisabled(savedDisabled);
     } catch (error) {
       if (error instanceof TypeError) toast('請輸入有效的完整 URL');
-      setCookies(sampleCookies.filter(cookie => !storeId || cookie.storeId === storeId));
+      setCookies(sampleCookies);
       setExpanded(new Set(['google.com']));
     }
   };
 
   useEffect(() => { void (async () => {
     try {
-      const [saved, availableStores] = await Promise.all([send<AppSettings>('settings'), send<StoreOption[]>('stores')]);
-      setSettings(saved); setStores(availableStores); await reload(saved.activeStoreId, saved.defaultView === 'URL' ? urlTarget.trim() : '');
+      const saved = await send<AppSettings>('settings');
+      setSettings(saved); await reload(saved.defaultView === 'URL' ? urlTarget.trim() : '');
     } catch { await reload(); }
   })(); }, []);
   useEffect(() => { setRevealed(false); }, [selected?.key]);
-  useEffect(() => { setSelectedSites(new Map()); setSelected(null); }, [activeStore, view, urlTarget]);
+  useEffect(() => { setSelectedSites(new Map()); setSelected(null); }, [view, urlTarget]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer);
+  }, [menuOpen]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -122,8 +127,7 @@ export function App() {
   const selectedCount = selectedSites.size;
   const confirmationText = selectedCount === 1 ? [...selectedSites.keys()][0] : `DELETE ${selectedCount} SITES`;
 
-  const persistSettings = async (next: AppSettings) => { setSettings(next); try { await send('saveSettings', { settings: next }); } catch { /* preview */ } };
-  const setStore = async (storeId: string) => { await persistSettings({ ...settings, activeStoreId: storeId }); setProfileOpen(false); await reload(storeId); };
+  const persistSettings = async (next: AppSettings) => { const normalized = { defaultView: next.defaultView }; setSettings(normalized); try { await send('saveSettings', { settings: normalized }); } catch { /* preview */ } };
   const setView = async (next: View) => { await persistSettings({ ...settings, defaultView: next }); setExpanded(new Set()); };
   const copy = async (text: string) => { await navigator.clipboard.writeText(text); toast('Copied to clipboard'); };
   const act = async (fn: () => Promise<unknown>, success: string) => { try { await fn(); toast(success); await reload(); } catch (error) { toast(error instanceof Error ? error.message : 'Action failed'); } };
@@ -157,8 +161,8 @@ export function App() {
     void act(() => send('saveCollections', { collections: next }), '已加入集合');
   };
   const exportBackup = async () => {
-    const password = window.prompt('設定備份密碼（至少 12 字元）');
-    if (!password || password.length < 12) return toast('備份密碼至少需 12 字元');
+    const password = window.prompt(`設定備份密碼（至少 ${MIN_BACKUP_PASSWORD_LENGTH} 字元）`);
+    if (!password || [...password].length < MIN_BACKUP_PASSWORD_LENGTH) return toast(`備份密碼至少需 ${MIN_BACKUP_PASSWORD_LENGTH} 字元`);
     try {
       const encrypted = await encryptBackup(await send<BackupPayload>('backup'), password);
       const url = URL.createObjectURL(new Blob([JSON.stringify(encrypted)], { type: 'application/json' }));
@@ -180,9 +184,8 @@ export function App() {
     clearSelection(); setSelected(null); setConfirmOpen(false);
   };
 
-  const activeStoreLabel = stores.find(store => store.id === activeStore)?.label ?? 'All stores';
   return <main className="app">
-    <header className="topbar"><div className="brand"><span className="mark"><i /><i /><i /><i /></span><h1>Breadcrumbs</h1></div><div className="header-actions"><button className="profile" onClick={() => { setProfileOpen(!profileOpen); setMenuOpen(false); }}><KeyRound size={17} /> {activeStoreLabel}<ChevronDown size={17} /></button><button className="icon-button" aria-label="More actions" onClick={() => { setMenuOpen(!menuOpen); setProfileOpen(false); }}><MoreVertical size={19} /></button></div>{profileOpen && <div className="popover profile-menu">{stores.map(store => <button key={store.id} className={store.id === activeStore ? 'active' : ''} onClick={() => void setStore(store.id)}><KeyRound size={15} /><span>{store.label}</span><small>{store.tabCount} tabs</small></button>)}</div>}{menuOpen && <div className="popover action-menu"><button onClick={() => { setMenuOpen(false); void reload(); }}><RefreshCw size={16} />Refresh cookies</button><button onClick={() => { selectAll(); setMenuOpen(false); }}><CheckSquare size={16} />Select visible sites</button><button onClick={() => { clearSelection(); setMenuOpen(false); }}><Square size={16} />Clear selection</button><button onClick={() => void openAudit()}><Menu size={16} />Audit log</button></div>}</header>
+    <header className="topbar"><div className="brand"><span className="mark"><i /><i /><i /><i /></span><h1>Breadcrumbs</h1></div><div className="header-actions" ref={menuRef}><button className="icon-button" aria-label="More actions" onClick={() => setMenuOpen(!menuOpen)}><MoreVertical size={19} /></button>{menuOpen && <div className="popover action-menu"><button onClick={() => { setMenuOpen(false); void reload(); }}><RefreshCw size={16} />Refresh cookies</button><button onClick={() => { selectAll(); setMenuOpen(false); }}><CheckSquare size={16} />Select visible sites</button><button onClick={() => { clearSelection(); setMenuOpen(false); }}><Square size={16} />Clear selection</button><button onClick={() => void openAudit()}><Menu size={16} />Audit log</button></div>}</div></header>
     <section className="toolbar"><div className="total"><Globe2 size={22} /><strong>All cookies</strong><span>{cookies.length}</span></div><label className="search"><Search size={20} /><input ref={searchRef} value={query} onChange={event => setQuery(event.target.value)} placeholder="Search cookies" /><kbd>/</kbd></label><label className="view-select"><Filter size={18} /><select value={view} onChange={event => void setView(event.target.value as View)}><option>Domain</option><option>FQDN</option><option>URL</option></select></label>{view === 'URL' && <label className="url-target"><Globe2 size={17} /><input value={urlTarget} onChange={event => setUrlTarget(event.target.value)} onBlur={() => void reload()} placeholder="https://example.com/path" /></label>}</section>
     {selectedCount > 0 && <section className="bulkbar"><strong>{selectedCount} site{selectedCount > 1 ? 's' : ''} · {selectedCookies.length} cookies selected</strong><button onClick={clearSelection}>Clear</button><button className="delete-selected" onClick={() => setConfirmOpen(true)}><Trash2 size={16} />Delete selected</button></section>}
     <section className="cookie-list" aria-label="Cookie list">
@@ -192,7 +195,7 @@ export function App() {
     </section>
     {selected && <Inspector cookie={selected} revealed={revealed} collections={collections.filter(group => group.keys.includes(selected.key))} onReveal={() => setRevealed(value => !value)} onCopy={copy} onClose={() => setSelected(null)} onExpiry={() => editExpiry(selected)} onAddCollection={addCollection} />}
     <footer className="footer"><button onClick={() => void exportBackup()}><CloudUpload size={18} />Backup</button><button onClick={() => inputRef.current?.click()}><CloudDownload size={18} />Restore</button><button onClick={() => selected ? void copy(setCookieText(selected)) : toast('請先選取 cookie')}><Copy size={18} />Copy raw</button><button className="settings" aria-label="Settings" onClick={() => void openSettings()}><Settings size={19} /></button><input ref={inputRef} hidden type="file" accept=".breadcrumbs,application/json" onChange={event => event.target.files?.[0] && void importBackup(event.target.files[0])} /></footer>
-    {settingsOpen && <SettingsDrawer settings={settings} storeLabel={activeStoreLabel} nativeAvailable={nativeAvailable} onView={setView} onClose={() => setSettingsOpen(false)} />}
+    {settingsOpen && <SettingsDrawer settings={settings} nativeAvailable={nativeAvailable} onView={setView} onClose={() => setSettingsOpen(false)} />}
     {auditOpen && <AuditDrawer entries={audit} onClose={() => setAuditOpen(false)} />}
     {confirmOpen && <DeleteConfirm sites={[...selectedSites.keys()]} cookieCount={selectedCookies.length} expected={confirmationText} onClose={() => setConfirmOpen(false)} onConfirm={() => void deleteSelected()} />}
     {message && <div className="toast">{message}</div>}
@@ -207,8 +210,8 @@ function Inspector({ cookie, revealed, collections, onReveal, onCopy, onClose, o
   return <aside className="inspector"><div className="inspector-head"><strong>Inspector: {cookie.name}</strong><button onClick={onClose}><X size={19} /></button></div><div className="inspector-body"><div className="raw"><label>Set-Cookie (reconstructed)</label><code>{revealed ? setCookieText(cookie) : `${cookie.name}=${masked(cookie.value)}; Path=${cookie.path}; Domain=${cookie.domain}`}</code><button className="reveal" onClick={onReveal}>{revealed ? <EyeOff size={17} /> : <Eye size={17} />}{revealed ? 'Hide value' : 'Reveal full value'}</button></div><dl><dt>Name</dt><dd>{cookie.name}</dd><dt>Value</dt><dd>{revealed ? cookie.value : masked(cookie.value)}</dd><dt>Domain</dt><dd>{cookie.domain} {cookie.hostOnly && '(host-only)'}</dd><dt>Path</dt><dd>{cookie.path}</dd><dt>Expires</dt><dd>{fmtExpiry(cookie)} <button className="text-button" onClick={onExpiry}>Edit</button></dd><dt>Secure</dt><dd>{cookie.secure ? 'Yes' : 'No'}</dd><dt>HttpOnly</dt><dd>{cookie.httpOnly ? 'Yes' : 'No'}</dd><dt>SameSite</dt><dd>{cookie.sameSite}</dd><dt>Collections</dt><dd>{collections.map(item => item.label).join(', ') || <button className="text-button" onClick={onAddCollection}><Plus size={14} /> Add</button>}</dd></dl></div><div className="inspector-actions"><button onClick={() => void onCopy(rawCookie(cookie))}><Copy size={16} />Copy name=value</button><button onClick={() => void onCopy(setCookieText(cookie))}><Clipboard size={16} />Copy Set-Cookie</button></div></aside>;
 }
 
-function SettingsDrawer({ settings, storeLabel, nativeAvailable, onView, onClose }: { settings: AppSettings; storeLabel: string; nativeAvailable: boolean | null; onView(view: View): void; onClose(): void }) {
-  return <aside className="drawer"><div className="drawer-head"><strong>Settings</strong><button onClick={onClose}><X size={19} /></button></div><section><label>Default view<select value={settings.defaultView} onChange={event => void onView(event.target.value as View)}><option>Domain</option><option>FQDN</option><option>URL</option></select></label><p><b>Cookie store</b><span>{storeLabel}</span></p><p><b>Host access</b><span>All websites enabled</span></p><p><b>Native companion</b><span className={nativeAvailable ? 'good' : 'warning'}>{nativeAvailable ? 'Connected' : 'Not installed'}</span></p></section></aside>;
+function SettingsDrawer({ settings, nativeAvailable, onView, onClose }: { settings: AppSettings; nativeAvailable: boolean | null; onView(view: View): void; onClose(): void }) {
+  return <aside className="drawer"><div className="drawer-head"><strong>Settings</strong><button onClick={onClose}><X size={19} /></button></div><section><label>Default view<select value={settings.defaultView} onChange={event => void onView(event.target.value as View)}><option>Domain</option><option>FQDN</option><option>URL</option></select></label><p><b>Host access</b><span>All websites enabled</span></p><p><b>Native companion</b><span className={nativeAvailable ? 'good' : 'warning'}>{nativeAvailable ? 'Connected' : 'Not installed'}</span></p></section></aside>;
 }
 
 function AuditDrawer({ entries, onClose }: { entries: AuditEntry[]; onClose(): void }) {

@@ -50,6 +50,19 @@ body { min-width: 800px; }
   min-width: 0;
 }
 
+.column-head, .cookie-row {
+  grid-template-columns: minmax(0, 1.34fr) minmax(0, .75fr) minmax(0, .35fr) minmax(0, .75fr) minmax(0, .85fr) minmax(0, 1.18fr);
+}
+
+.column-head > *, .cookie-row > * { min-width: 0; }
+
+.cookie-row > strong > span,
+.cookie-row > span:not(.actions) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cookie-fqdn {
   overflow: hidden;
   color: #667085;

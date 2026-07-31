@@ -16,6 +16,14 @@ describe('backup encryption', () => {
     await expect(decryptBackup(encrypted, 'correct horse battery staple')).resolves.toEqual(payload);
   }, 30_000);
 
+  it('requires at least eight Unicode characters for new backups', async () => {
+    const item = cookie(); item.key = cookieKey(item);
+    const payload: BackupPayload = { version: 1, exportedAt: 1, cookies: [item], collections: [], disabled: [], audit: [] };
+    await expect(encryptBackup(payload, '1234567')).rejects.toThrow('at least 8 characters');
+    const encrypted = await encryptBackup(payload, '你好世界你好世界');
+    await expect(decryptBackup(encrypted, '你好世界你好世界')).resolves.toEqual(payload);
+  }, 30_000);
+
   it('keeps partitioned cookie identities distinct', () => {
     const item = cookie();
     expect(cookieKey(item)).not.toEqual(cookieKey({ ...item, partitionKey: { topLevelSite: 'https://example.com' } }));
