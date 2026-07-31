@@ -1,0 +1,7 @@
+node_modules/
+.output/
+dist/
+.wxt/
+.DS_Store
+.ai/status.json
+native/.build/

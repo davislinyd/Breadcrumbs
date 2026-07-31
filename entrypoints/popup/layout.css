@@ -1,0 +1,70 @@
+/* Fixed Chromium action popup: only the list and inspector may scroll. */
+html, body, #root {
+  width: 800px;
+  height: 600px;
+  overflow: hidden;
+}
+
+body { min-width: 800px; }
+
+.app {
+  display: flex;
+  flex-direction: column;
+  width: 800px;
+  height: 600px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.topbar, .toolbar, .footer { flex: 0 0 auto; }
+
+.bulkbar {
+  position: relative;
+  top: auto;
+  flex: 0 0 48px;
+}
+
+.cookie-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.inspector {
+  flex: 0 0 275px;
+  min-height: 0;
+  max-height: 275px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: inspector-in 160ms ease-out;
+}
+
+.footer { flex: 0 0 65px; }
+
+.cookie-row > strong {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cookie-fqdn {
+  overflow: hidden;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes inspector-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector { animation: none; }
+}
