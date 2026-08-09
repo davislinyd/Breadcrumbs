@@ -6,8 +6,16 @@ if [[ $# -ne 1 ]]; then
 fi
 native_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "$native_dir"
+if ! command -v swift >/dev/null 2>&1; then
+  print -u2 'swift is required to build the Native Messaging host.'
+  exit 69
+fi
 swift build -c release
 host="$native_dir/.build/release/breadcrumbs-host"
+if [[ ! -x "$host" ]]; then
+  print -u2 "Build succeeded but host binary missing: $host"
+  exit 70
+fi
 extension_id="$1"
 for base in \
   "$HOME/Library/Application Support/Google/Chrome" \
@@ -21,8 +29,17 @@ for base in \
 import json, sys
 path, host, extension_id = sys.argv[1:]
 with open(path, 'w') as f:
-    json.dump({'name': 'dev.breadcrumbs.host', 'description': 'Breadcrumbs local companion', 'path': host, 'type': 'stdio', 'allowed_origins': [f'chrome-extension://{extension_id}/']}, f, indent=2)
+    json.dump({
+        'name': 'dev.breadcrumbs.host',
+        'description': 'Breadcrumbs local companion',
+        'path': host,
+        'type': 'stdio',
+        'allowed_origins': [f'chrome-extension://{extension_id}/'],
+    }, f, indent=2)
+    f.write('\n')
 PY
 done
 ln -sf "$native_dir/.build/release/breadcrumbsctl" "$native_dir/breadcrumbsctl"
 print 'Installed Native Messaging manifests and breadcrumbsctl.'
+print "Host: $host"
+print "Extension ID: $extension_id"

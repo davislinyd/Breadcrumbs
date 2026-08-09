@@ -1,5 +1,6 @@
 node_modules/
 .output/
+extension/
 dist/
 .wxt/
 .DS_Store

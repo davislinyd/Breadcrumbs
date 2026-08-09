@@ -20,16 +20,29 @@ public enum BreadcrumbsCore {
   }
 
   private static func vaultKey() throws -> SymmetricKey {
-    let lookup: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account, kSecReturnData as String: true]
+    let lookup: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+      kSecReturnData as String: true,
+    ]
     var item: CFTypeRef?
     let status = SecItemCopyMatching(lookup as CFDictionary, &item)
     if status == errSecSuccess, let data = item as? Data { return SymmetricKey(data: data) }
-    guard status == errSecItemNotFound else { throw NSError(domain: "Breadcrumbs", code: Int(status)) }
+    guard status == errSecItemNotFound else { throw BreadcrumbsError.keychain(status) }
     var bytes = [UInt8](repeating: 0, count: 32)
-    guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw NSError(domain: "Breadcrumbs", code: 1) }
+    guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+      throw BreadcrumbsError.randomFailed
+    }
     let data = Data(bytes)
-    let add: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account, kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
-    guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else { throw NSError(domain: "Breadcrumbs", code: 2) }
+    let add: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+    ]
+    guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else { throw BreadcrumbsError.keychainWriteFailed }
     return SymmetricKey(data: data)
   }
 
@@ -37,7 +50,7 @@ public enum BreadcrumbsCore {
     try prepareDirectory()
     let plain = try JSONSerialization.data(withJSONObject: object, options: [])
     let sealed = try AES.GCM.seal(plain, using: vaultKey())
-    guard let combined = sealed.combined else { throw NSError(domain: "Breadcrumbs", code: 3) }
+    guard let combined = sealed.combined else { throw BreadcrumbsError.sealFailed }
     try combined.write(to: url, options: [.atomic])
     try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path())
   }
@@ -46,7 +59,9 @@ public enum BreadcrumbsCore {
     let encrypted = try Data(contentsOf: url)
     let box = try AES.GCM.SealedBox(combined: encrypted)
     let plain = try AES.GCM.open(box, using: vaultKey())
-    guard let object = try JSONSerialization.jsonObject(with: plain) as? [String: Any] else { throw NSError(domain: "Breadcrumbs", code: 4) }
+    guard let object = try JSONSerialization.jsonObject(with: plain) as? [String: Any] else {
+      throw BreadcrumbsError.invalidPayload
+    }
     return object
   }
 
@@ -86,7 +101,9 @@ public enum BreadcrumbsCore {
 
   public static func redact(_ value: Any) -> Any {
     guard var item = value as? [String: Any] else { return value }
-    if let text = item["value"] as? String { item["value"] = String(repeating: "•", count: min(max(text.count, 12), 24)) }
+    if let text = item["value"] as? String {
+      item["value"] = String(repeating: "•", count: min(max(text.count, 12), 24))
+    }
     return item
   }
 }

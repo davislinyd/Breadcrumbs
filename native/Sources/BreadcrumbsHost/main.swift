@@ -19,26 +19,5 @@ func writeMessage(_ value: [String: Any]) {
 }
 
 while let request = readMessage() {
-  let action = request["action"] as? String ?? ""
-  switch action {
-  case "status": writeMessage(["available": true, "updatedAt": BreadcrumbsCore.state()["updatedAt"] ?? NSNull()])
-  case "snapshot":
-    do { try BreadcrumbsCore.saveSnapshot(request["payload"] ?? [:]); writeMessage(["stored": true]) }
-    catch { writeMessage(["stored": false, "error": error.localizedDescription]) }
-  case "vaultPut":
-    do {
-      guard let id = request["id"] as? String, let payload = request["payload"] else { throw NSError(domain: "Breadcrumbs", code: 10) }
-      var vault = try BreadcrumbsCore.readVault(); vault[id] = payload; try BreadcrumbsCore.saveVault(vault); writeMessage(["stored": true])
-    } catch { writeMessage(["stored": false, "error": error.localizedDescription]) }
-  case "vaultGet":
-    do { let vault = try BreadcrumbsCore.readVault(); writeMessage(["entry": vault[request["id"] as? String ?? ""] ?? NSNull()]) }
-    catch { writeMessage(["error": error.localizedDescription]) }
-  case "vaultList":
-    do { writeMessage(["entries": Array(try BreadcrumbsCore.readVault().values)]) }
-    catch { writeMessage(["error": error.localizedDescription]) }
-  case "vaultDelete":
-    do { var vault = try BreadcrumbsCore.readVault(); vault.removeValue(forKey: request["id"] as? String ?? ""); try BreadcrumbsCore.saveVault(vault); writeMessage(["deleted": true]) }
-    catch { writeMessage(["deleted": false, "error": error.localizedDescription]) }
-  default: writeMessage(["error": "Unsupported action"])
-  }
+  writeMessage(HostHandlers.handle(request))
 }

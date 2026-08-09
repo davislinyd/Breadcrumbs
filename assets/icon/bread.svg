@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <!-- Flat 2D pineapple bun. No shadows, no 3D depth. Transparent bg. -->
+  <!-- bun body -->
+  <ellipse cx="64" cy="78" rx="44" ry="34" fill="#E8B85A"/>
+  <!-- pineapple crust (flat dome) -->
+  <ellipse cx="64" cy="52" rx="40" ry="30" fill="#E0A030"/>
+  <!-- crackle lattice — flat dark lines -->
+  <g stroke="#8B4A12" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M32 52 L48 36 L64 52 L48 68 Z"/>
+    <path d="M48 36 L64 20 L80 36 L64 52 Z"/>
+    <path d="M64 52 L80 36 L96 52 L80 68 Z"/>
+    <path d="M48 68 L64 52 L80 68 L64 84 Z"/>
+    <path d="M40 44 L52 32"/>
+    <path d="M76 32 L88 44"/>
+    <path d="M40 60 L52 72"/>
+    <path d="M76 72 L88 60"/>
+  </g>
+</svg>

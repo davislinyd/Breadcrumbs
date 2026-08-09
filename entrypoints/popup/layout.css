@@ -1,11 +1,15 @@
 /* Fixed Chromium action popup: only the list and inspector may scroll. */
-html, body, #root {
+html,
+body,
+#root {
   width: 800px;
   height: 600px;
   overflow: hidden;
 }
 
-body { min-width: 800px; }
+body {
+  min-width: 800px;
+}
 
 .app {
   display: flex;
@@ -17,16 +21,30 @@ body { min-width: 800px; }
   overflow: hidden;
 }
 
-.topbar, .toolbar, .footer { flex: 0 0 auto; }
+.topbar,
+.toolbar,
+.footer {
+  flex: 0 0 auto;
+}
 
 .bulkbar {
   position: relative;
   top: auto;
-  flex: 0 0 48px;
+  flex: 0 0 36px;
+}
+
+.main-pane {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: row;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .cookie-list {
   flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
   max-height: none;
   overflow-y: auto;
@@ -34,50 +52,52 @@ body { min-width: 800px; }
 }
 
 .inspector {
-  flex: 0 0 275px;
+  display: flex;
+  flex: 0 0 280px;
+  flex-direction: column;
+  width: 280px;
   min-height: 0;
-  max-height: 275px;
+  max-height: none;
   overflow-y: auto;
   overscroll-behavior: contain;
+  border-top: 0;
+  border-left: 1px solid #dce2eb;
+  box-shadow: -4px 0 16px rgba(16, 24, 40, 0.05);
   animation: inspector-in 160ms ease-out;
 }
 
-.footer { flex: 0 0 65px; }
+.column-head,
+.cookie-row {
+  grid-template-columns:
+    minmax(0, 1.4fr) minmax(0, 0.55fr) minmax(0, 0.45fr) minmax(0, 0.45fr) minmax(0, 0.75fr)
+    minmax(0, 0.95fr);
+}
 
-.cookie-row > strong {
-  display: grid;
-  gap: 2px;
+.column-head > *,
+.cookie-row > * {
   min-width: 0;
 }
 
-.column-head, .cookie-row {
-  grid-template-columns: minmax(0, 1.34fr) minmax(0, .75fr) minmax(0, .35fr) minmax(0, .75fr) minmax(0, .85fr) minmax(0, 1.18fr);
-}
-
-.column-head > *, .cookie-row > * { min-width: 0; }
-
-.cookie-row > strong > span,
+.cookie-row > strong,
 .cookie-row > span:not(.actions) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.cookie-fqdn {
-  overflow: hidden;
-  color: #667085;
-  font-size: 11px;
-  font-weight: 500;
-  text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 @keyframes inspector-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .inspector { animation: none; }
+  .inspector {
+    animation: none;
+  }
 }
