@@ -2,19 +2,19 @@
 html,
 body,
 #root {
-  width: 800px;
+  width: 560px;
   height: 600px;
   overflow: hidden;
 }
 
 body {
-  min-width: 800px;
+  min-width: 560px;
 }
 
 .app {
   display: flex;
   flex-direction: column;
-  width: 800px;
+  width: 560px;
   height: 600px;
   min-width: 0;
   min-height: 0;
@@ -53,9 +53,9 @@ body {
 
 .inspector {
   display: flex;
-  flex: 0 0 280px;
+  flex: 0 0 240px;
   flex-direction: column;
-  width: 280px;
+  width: 240px;
   min-height: 0;
   max-height: none;
   overflow-y: auto;
@@ -69,8 +69,8 @@ body {
 .column-head,
 .cookie-row {
   grid-template-columns:
-    minmax(0, 1.4fr) minmax(0, 0.55fr) minmax(0, 0.45fr) minmax(0, 0.45fr) minmax(0, 0.75fr)
-    minmax(0, 0.95fr);
+    minmax(0, 1.2fr) minmax(0, 0.5fr) minmax(0, 0.4fr) minmax(0, 0.4fr) minmax(0, 0.7fr)
+    minmax(92px, 0.9fr);
 }
 
 .column-head > *,
